@@ -1,0 +1,86 @@
+﻿{
+  "info": {
+    "authors": [
+      {
+        "links": "",
+        "name": "½"
+      }
+    ],
+    "bgiVersion": "0.35.1",
+    "bgi_version": "0.45.0",
+    "description": "",
+    "enable_monster_loot_split": false,
+    "last_modified_time": 1769663849874,
+    "map_match_method": "",
+    "map_name": "Teyvat",
+    "name": "璃月凯瑟琳",
+    "tags": [],
+    "type": "collect",
+    "version": "1.0"
+  },
+  "positions": [
+    {
+      "action": "",
+      "action_params": "",
+      "id": 1,
+      "move_mode": "walk",
+      "type": "teleport",
+      "x": 267.93359375,
+      "y": -665.1591796875
+    },
+    {
+      "action": "",
+      "action_params": "",
+      "id": 2,
+      "move_mode": "dash",
+      "type": "path",
+      "x": 256.369140625,
+      "y": -662.919921875
+    },
+    {
+      "action": "",
+      "action_params": "",
+      "id": 3,
+      "move_mode": "dash",
+      "type": "path",
+      "x": 238.1357421875,
+      "y": -663.703125
+    },
+    {
+      "action": "",
+      "action_params": "",
+      "id": 4,
+      "move_mode": "dash",
+      "type": "path",
+      "x": 223.0048828125,
+      "y": -656.462890625
+    },
+    {
+      "action": "",
+      "action_params": "",
+      "id": 5,
+      "move_mode": "dash",
+      "type": "path",
+      "x": 209.25390625,
+      "y": -659.3623046875
+    },
+    {
+      "action": "",
+      "action_params": "",
+      "id": 6,
+      "move_mode": "walk",
+      "type": "path",
+      "x": 206.4521484375,
+      "y": -660.50390625
+    },
+    {
+      "action": "",
+      "action_params": "",
+      "id": 7,
+      "move_mode": "walk",
+      "type": "path",
+      "x": 203.359375,
+      "y": -659.1376953125
+    }
+  ]
+}

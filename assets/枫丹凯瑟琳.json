@@ -1,0 +1,40 @@
+﻿{
+  "info": {
+    "authors": [
+      {
+        "links": "",
+        "name": "½"
+      }
+    ],
+    "bgiVersion": "0.35.1",
+    "bgi_version": "0.45.0",
+    "description": "",
+    "enable_monster_loot_split": false,
+    "last_modified_time": 1769664527945,
+    "map_match_method": "",
+    "map_name": "Teyvat",
+    "name": "枫丹凯瑟琳",
+    "tags": [],
+    "type": "collect",
+    "version": "1.0"
+  },
+  "positions": [
+    {
+      "action": "",
+      "id": 1,
+      "move_mode": "walk",
+      "type": "teleport",
+      "x": 4509.96044921875,
+      "y": 3630.826904296875
+    },
+    {
+      "action": "",
+      "action_params": "",
+      "id": 2,
+      "move_mode": "walk",
+      "type": "path",
+      "x": 4495.437364378742,
+      "y": 3639.312568836802
+    }
+  ]
+}
