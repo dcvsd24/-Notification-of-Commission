@@ -1,5 +1,4 @@
 [
-
    {
       "name": "adventurePath",
         "type": "select",
@@ -13,5 +12,11 @@
             "挪德卡莱"
         ],
         "default": "蒙德"
+    },
+    {
+        "name": "newAccountMode",
+        "type": "checkbox",
+        "label": "新号模式（未解锁幻想真境剧诗时勾选）",
+        "default": false
     }
 ]

@@ -138,19 +138,51 @@
 
         await sleep(500); // 短延时提升稳定性
 
-        // ===== 8. 幻想真境剧诗剩余时间检查 =====
-        await executeCheckWithRetry(async () => {
-            log.info("🔍 正在检查【幻想真境剧诗】剩余时间");
-            // 点击坐标进入详情页
-            log.info("📌 点击坐标290,445进入秘境面板");
-            click(290, 445);
-            await sleep(1500);
-            log.info("📌 点击坐标513,741进入幻想真境剧诗面板");
-            click(513, 741);
-            await sleep(1500);
-            log.info("📌 点击坐标1230,845进入剩余时间详情页");
-            click(1230, 845);
-            await sleep(2000);
+        // ===== 8. 幻想真境剧诗剩余时间检查（仅非新号模式）=====
+        if (!settings.newAccountMode) {
+            await executeCheckWithRetry(async () => {
+                log.info("🔍 正在检查【幻想真境剧诗】剩余时间");
+                // 点击坐标进入详情页
+                log.info("📌 点击坐标290,445进入秘境面板");
+                click(290, 445);
+                await sleep(1500);
+                
+                // 幻想真境剧诗入口OCR识别（带重试）
+                let unrealFound = false;
+                for (let retry = 1; retry <= 3 && !unrealFound; retry++) {
+                    log.info(`📌 OCR识别区域寻找幻想真境剧诗入口（第${retry}次）`);
+                    const unrealEntranceRegion = RecognitionObject.ocr(432, 496, 297, 409);
+                    let captureUnreal = captureGameRegion();
+                    let ocrUnrealResult = captureUnreal.findMulti(unrealEntranceRegion);
+                    
+                    for (let i = 0; i < ocrUnrealResult.Count; i++) {
+                        let res = ocrUnrealResult[i];
+                        if (res.text && (/幻想/.test(res.text) || /真境/.test(res.text) || /剧诗/.test(res.text))) {
+                            let unrealTargetX = Math.round(res.x + res.width / 2);
+                            let unrealTargetY = Math.round(res.y + res.height / 2);
+                            log.info(`✅ 识别到幻想真境剧诗入口：${res.text}，点击中心(${unrealTargetX}, ${unrealTargetY})`);
+                            click(unrealTargetX, unrealTargetY);
+                            res.Dispose();
+                            unrealFound = true;
+                            break;
+                        }
+                        res.Dispose();
+                    }
+                    captureUnreal.dispose();
+                    
+                    if (!unrealFound && retry < 3) {
+                        log.warn(`⚠️ 第${retry}次未识别到幻想真境剧诗入口，1秒后重试`);
+                        await sleep(1000);
+                    }
+                }
+                
+                if (!unrealFound) {
+                    log.warn("⚠️ 3次未识别到幻想真境剧诗入口文字");
+                }
+                await sleep(1500);
+                log.info("📌 点击坐标1230,845进入剩余时间详情页");
+                click(1230, 845);
+                await sleep(2000);
 
             // OCR识别幻想真境剧诗剩余时间（区域为x1444,y497,w330,h270）
             log.info("🔍 OCR识别幻想真境剧诗剩余时间");
@@ -186,16 +218,56 @@
             keyPress("VK_ESCAPE");
             await sleep(1500);
         }, "幻想真境剧诗剩余时间识别");
+        }
 
         await sleep(500); // 短延时提升稳定性
 
         // ===== 9. 深境螺旋剩余时间检查 =====
-        await executeCheckWithRetry(async () => {
-            log.info("🔍 正在检查【深境螺旋】剩余时间");
-            // 点击坐标进入详情页
-            log.info("📌 点击坐标1491,47进入深境螺旋详情页");
-            click(1491, 47);
-            await sleep(2000);
+        // 新号模式使用不同的入口坐标
+        if (settings.newAccountMode) {
+            // 新号模式：点击秘境291,446 -> 深境螺旋入口489,651 -> 1223,841
+            await executeCheckWithRetry(async () => {
+                log.info("🔍 正在检查【深境螺旋】剩余时间（新号模式）");
+                log.info("📌 点击坐标291,446进入秘境面板");
+                click(291, 446);
+                await sleep(1500);
+                
+                // 深境螺旋入口OCR识别（带重试）
+                let abyssFound = false;
+                for (let retry = 1; retry <= 3 && !abyssFound; retry++) {
+                    log.info(`📌 OCR识别区域寻找深境螺旋入口（第${retry}次）`);
+                    const abyssEntranceRegion = RecognitionObject.ocr(432, 496, 297, 409);
+                    let captureAbyss = captureGameRegion();
+                    let ocrAbyssResult = captureAbyss.findMulti(abyssEntranceRegion);
+                    
+                    for (let i = 0; i < ocrAbyssResult.Count; i++) {
+                        let res = ocrAbyssResult[i];
+                        if (res.text && (/深境/.test(res.text) || /螺旋/.test(res.text))) {
+                            let targetX = Math.round(res.x + res.width / 2);
+                            let targetY = Math.round(res.y + res.height / 2);
+                            log.info(`✅ 识别到深境螺旋入口：${res.text}，点击中心(${targetX}, ${targetY})`);
+                            click(targetX, targetY);
+                            res.Dispose();
+                            abyssFound = true;
+                            break;
+                        }
+                        res.Dispose();
+                    }
+                    captureAbyss.dispose();
+                    
+                    if (!abyssFound && retry < 3) {
+                        log.warn(`⚠️ 第${retry}次未识别到深境螺旋入口，1秒后重试`);
+                        await sleep(1000);
+                    }
+                }
+                
+                if (!abyssFound) {
+                    log.warn("⚠️ 3次未识别到深境螺旋入口文字");
+                }
+                await sleep(1500);
+                log.info("📌 点击坐标1223,841进入深境螺旋详情页");
+                click(1223, 841);
+                await sleep(2000);
 
             // OCR识别深境螺旋剩余时间（x1440,y587,w315,h36）
             log.info("🔍 OCR识别深境螺旋剩余时间（区域：x1440,y587,w315,h36）");
@@ -218,92 +290,203 @@
             keyPress("VK_ESCAPE");
             await sleep(1500);
         }, "深境螺旋剩余时间识别");
+        } else {
+            // 原有模式深境螺旋入口
+            await executeCheckWithRetry(async () => {
+                log.info("🔍 正在检查【深境螺旋】剩余时间");
+                // 点击坐标进入详情页
+                log.info("📌 点击坐标1491,47进入深境螺旋详情页");
+                click(1491, 47);
+                await sleep(2000);
+
+            // OCR识别深境螺旋剩余时间（x1440,y587,w315,h36）
+            log.info("🔍 OCR识别深境螺旋剩余时间（区域：x1440,y587,w315,h36）");
+            const spiralAbyssRegion = RecognitionObject.ocr(1440, 587, 315, 36);
+            let capture = captureGameRegion();
+            let ocrRes = capture.find(spiralAbyssRegion);
+            checkResult.spiralAbyssRemainTime = ocrRes.text?.trim() || "未识别";
+            capture.dispose();
+
+            // 日志输出+刷新提示
+            log.info(`✅ 深境螺旋剩余时间：${checkResult.spiralAbyssRemainTime}`);
+            const abyssDays = checkResult.spiralAbyssRemainTime.match(/(\d+)天/)?.[1] || 
+                              (checkResult.spiralAbyssRemainTime.includes("小时") ? 0 : 99);
+            if (parseInt(abyssDays) <= 3) {
+                log.warn(`⚠️ 深境螺旋剩余时间≤3天（或不足1天），即将刷新！`);
+            }
+
+            // 按ESC退出详情页
+            log.info("📌 按下ESC退出深境螺旋详情页");
+            keyPress("VK_ESCAPE");
+            await sleep(1500);
+        }, "深境螺旋剩余时间识别");
+        }
 
         await sleep(500); // 短延时提升稳定性
 
         // ===== 10. 原粹树脂剩余数量&恢复时间检查 =====
-        await executeCheckWithRetry(async () => {
-            log.info("🔍 正在检查【原粹树脂】剩余数量&恢复时间");
-            // 第一步：识别剩余树脂数量（x1272,y30,w106,h40）
-            log.info("🔍 OCR识别原粹树脂剩余数量（区域：x1272,y30,w106,h40）");
-            const resinCountRegion = RecognitionObject.ocr(1272, 30, 106, 40);
-            let capture1 = captureGameRegion();
-            let ocrRes1 = capture1.find(resinCountRegion);
-            // 提取斜杠前的数字，仅保留当前数量
-            let resinRawText = ocrRes1.text?.trim() || "未识别";
-            let resinNum = resinRawText.split('/')[0]?.trim() || resinRawText;
-            checkResult.resinCount = resinNum; // 仅保存当前数量
-            capture1.dispose();
-        
-            // 第二步：点击坐标后识别恢复时间（x1254,46）
-            log.info("📌 点击坐标1254,46查看树脂恢复时间");
-            click(1254, 46);
-            await sleep(1500);
-        
-            // 识别恢复时间（x1218,y181,w124,h36）
-            log.info("🔍 OCR识别原粹树脂全部恢复时间");
-            const resinRecoverRegion = RecognitionObject.ocr(1218, 181, 124, 36);
-            let capture2 = captureGameRegion();
-            let ocrRes2 = capture2.find(resinRecoverRegion);
-            // 判定恢复时间为空/未识别时的处理逻辑
-            let recoverTimeText = ocrRes2.text?.trim() || "";
-            
-            // 移除秒数 + 去掉前置零（如01h-05min → 1h-5min）
-            if (recoverTimeText) {
-                // 按冒号拆分时间（时:分:秒），只取时和分
-                const timeParts = recoverTimeText.split(':');
-                if (timeParts.length >= 2) {
-                    // 去掉前置零：通过Number转换自动去除，再转回字符串
-                    let hours = Number(timeParts[0]).toString();
-                    let minutes = Number(timeParts[1]).toString();
-                    checkResult.resinRecoverTime = `${hours}h-${minutes}min`;
+        if (settings.newAccountMode) {
+            // 新号模式树脂识别区域不同
+            await executeCheckWithRetry(async () => {
+                log.info("🔍 正在检查【原粹树脂】剩余数量&恢复时间（新号模式）");
+                // 第一步：识别剩余树脂数量（x1400,y30,w111,h35）
+                log.info("🔍 OCR识别原粹树脂剩余数量（区域：x1400,y30,w111,h35）");
+                const resinCountRegion = RecognitionObject.ocr(1400, 30, 111, 35);
+                let capture1 = captureGameRegion();
+                let ocrRes1 = capture1.find(resinCountRegion);
+                let resinRawText = ocrRes1.text?.trim() || "未识别";
+                let resinNum = resinRawText.split('/')[0]?.trim() || resinRawText;
+                checkResult.resinCount = resinNum;
+                capture1.dispose();
+
+                // 第二步：点击坐标1387,49查看树脂恢复时间
+                log.info("📌 点击坐标1387,49查看树脂恢复时间");
+                click(1387, 49);
+                await sleep(1500);
+
+                // 识别恢复时间（x1346,y183,w166,h36）
+                log.info("🔍 OCR识别原粹树脂全部恢复时间");
+                const resinRecoverRegion = RecognitionObject.ocr(1346, 183, 166, 36);
+                let capture2 = captureGameRegion();
+                let ocrRes2 = capture2.find(resinRecoverRegion);
+                let recoverTimeText = ocrRes2.text?.trim() || "";
+
+                if (recoverTimeText) {
+                    const timeParts = recoverTimeText.split(':');
+                    if (timeParts.length >= 2) {
+                        let hours = Number(timeParts[0]).toString();
+                        let minutes = Number(timeParts[1]).toString();
+                        checkResult.resinRecoverTime = `${hours}h-${minutes}min`;
+                    } else {
+                        checkResult.resinRecoverTime = recoverTimeText;
+                    }
                 } else {
-                    // 格式异常时保留原文本
-                    checkResult.resinRecoverTime = recoverTimeText;
+                    checkResult.resinRecoverTime = "⚠️原粹树脂已完全恢复";
                 }
-            } else {
-                // 树脂满时恢复时间为空，直接标记为"原粹树脂已完全恢复"
-                checkResult.resinRecoverTime = "⚠️原粹树脂已完全恢复";
-            }
-            capture2.dispose();
+                capture2.dispose();
+
+                log.info(`✅ 原粹树脂剩余数量：${checkResult.resinCount}`);
+                log.info(`✅ 原粹树脂全部恢复时间：${checkResult.resinRecoverTime}`);
+            }, "原粹树脂状态识别");
+        } else {
+            // 原有模式树脂识别
+            await executeCheckWithRetry(async () => {
+                log.info("🔍 正在检查【原粹树脂】剩余数量&恢复时间");
+                // 第一步：识别剩余树脂数量（x1272,y30,w106,h40）
+                log.info("🔍 OCR识别原粹树脂剩余数量（区域：x1272,y30,w106,h40）");
+                const resinCountRegion = RecognitionObject.ocr(1272, 30, 106, 40);
+                let capture1 = captureGameRegion();
+                let ocrRes1 = capture1.find(resinCountRegion);
+                // 提取斜杠前的数字，仅保留当前数量
+                let resinRawText = ocrRes1.text?.trim() || "未识别";
+                let resinNum = resinRawText.split('/')[0]?.trim() || resinRawText;
+                checkResult.resinCount = resinNum; // 仅保存当前数量
+                capture1.dispose();
         
-            // 日志输出
-            log.info(`✅ 原粹树脂剩余数量：${checkResult.resinCount}`);
-            log.info(`✅ 原粹树脂全部恢复时间：${checkResult.resinRecoverTime}`);
-        }, "原粹树脂状态识别");
+                // 第二步：点击坐标后识别恢复时间（x1254,46）
+                log.info("📌 点击坐标1254,46查看树脂恢复时间");
+                click(1254, 46);
+                await sleep(1500);
+        
+                // 识别恢复时间（x1218,y181,w124,h36）
+                log.info("🔍 OCR识别原粹树脂全部恢复时间");
+                const resinRecoverRegion = RecognitionObject.ocr(1218, 181, 124, 36);
+                let capture2 = captureGameRegion();
+                let ocrRes2 = capture2.find(resinRecoverRegion);
+                // 判定恢复时间为空/未识别时的处理逻辑
+                let recoverTimeText = ocrRes2.text?.trim() || "";
+                
+                // 移除秒数 + 去掉前置零（如01h-05min → 1h-5min）
+                if (recoverTimeText) {
+                    // 按冒号拆分时间（时:分:秒），只取时和分
+                    const timeParts = recoverTimeText.split(':');
+                    if (timeParts.length >= 2) {
+                        // 去掉前置零：通过Number转换自动去除，再转回字符串
+                        let hours = Number(timeParts[0]).toString();
+                        let minutes = Number(timeParts[1]).toString();
+                        checkResult.resinRecoverTime = `${hours}h-${minutes}min`;
+                    } else {
+                        // 格式异常时保留原文本
+                        checkResult.resinRecoverTime = recoverTimeText;
+                    }
+                } else {
+                    // 树脂满时恢复时间为空，直接标记为"原粹树脂已完全恢复"
+                    checkResult.resinRecoverTime = "⚠️原粹树脂已完全恢复";
+                }
+                capture2.dispose();
+        
+                // 日志输出
+                log.info(`✅ 原粹树脂剩余数量：${checkResult.resinCount}`);
+                log.info(`✅ 原粹树脂全部恢复时间：${checkResult.resinRecoverTime}`);
+            }, "原粹树脂状态识别");
+        }
         
         await sleep(500); // 短延时提升稳定性
 
-        // ===== 11. 新增：原石剩余数量检查 =====
-        await executeCheckWithRetry(async () => {
-            log.info("🔍 正在检查【原石】剩余数量");
-            // 点击坐标1400,47打开原石弹窗
-            log.info("📌 点击坐标1400,47打开原石详情弹窗");
-            click(1400, 47);
-            await sleep(1500);
+        // ===== 11. 新增：识别恢复时间（x1218,y181,w124,h36） =====
+        if (settings.newAccountMode) {
+            // 新号模式原石识别
+            await executeCheckWithRetry(async () => {
+                log.info("🔍 正在检查【原石】剩余数量（新号模式）");
+                // 点击坐标1530,46打开原石弹窗
+                log.info("📌 点击坐标1530,46打开原石详情弹窗");
+                click(1530, 46);
+                await sleep(1500);
 
-            // OCR识别原石数量（区域：x970,y522,w119,h27）
-            log.info("🔍 OCR识别原石剩余数量（区域：x970,y522,w119,h27）");
-            const primogemRegion = RecognitionObject.ocr(970, 522, 119, 27);
-            let capture = captureGameRegion();
-            let ocrRes = capture.find(primogemRegion);
-            let rawPrimogemText = ocrRes.text?.trim() || "";
-            capture.dispose();
+                // OCR识别原石数量（区域：x970,y522,w119,h27）
+                log.info("🔍 OCR识别原石剩余数量（区域：x970,y522,w119,h27）");
+                const primogemRegion = RecognitionObject.ocr(970, 522, 119, 27);
+                let capture = captureGameRegion();
+                let ocrRes = capture.find(primogemRegion);
+                let rawPrimogemText = ocrRes.text?.trim() || "";
+                capture.dispose();
 
-            // 过滤特殊符号，仅保留纯数字
-            checkResult.primogemCount = rawPrimogemText.replace(/[^0-9]/g, '');
-            if (!checkResult.primogemCount) {
-                checkResult.primogemCount = "未识别";
-            }
+                // 过滤特殊符号，仅保留纯数字
+                checkResult.primogemCount = rawPrimogemText.replace(/[^0-9]/g, '');
+                if (!checkResult.primogemCount) {
+                    checkResult.primogemCount = "未识别";
+                }
 
-            // 日志输出
-            log.info(`✅ 原石剩余数量：${checkResult.primogemCount}`);
+                // 日志输出
+                log.info(`✅ 原石剩余数量：${checkResult.primogemCount}`);
 
-            // 按ESC退出详情页
-            log.info("📌 按下ESC退出原石详情弹窗");
-            keyPress("VK_ESCAPE");
-            await sleep(1500);
-        }, "原石剩余数量识别");
+                // 按ESC退出详情页
+                log.info("📌 按下ESC退出原石详情弹窗");
+                keyPress("VK_ESCAPE");
+                await sleep(1500);
+            }, "原石剩余数量识别");
+        } else {
+            // 原有模式原石识别
+            await executeCheckWithRetry(async () => {
+                log.info("🔍 正在检查【原石】剩余数量");
+                // 点击坐标1400,47打开原石弹窗
+                log.info("📌 点击坐标1400,47打开原石详情弹窗");
+                click(1400, 47);
+                await sleep(1500);
+
+                // OCR识别原石数量（区域：x970,y522,w119,h27）
+                log.info("🔍 OCR识别原石剩余数量（区域：x970,y522,w119,h27）");
+                const primogemRegion = RecognitionObject.ocr(970, 522, 119, 27);
+                let capture = captureGameRegion();
+                let ocrRes = capture.find(primogemRegion);
+                let rawPrimogemText = ocrRes.text?.trim() || "";
+                capture.dispose();
+
+                // 过滤特殊符号，仅保留纯数字
+                checkResult.primogemCount = rawPrimogemText.replace(/[^0-9]/g, '');
+                if (!checkResult.primogemCount) {
+                    checkResult.primogemCount = "未识别";
+                }
+
+                // 日志输出
+                log.info(`✅ 原石剩余数量：${checkResult.primogemCount}`);
+
+                // 按ESC退出详情页
+                log.info("📌 按下ESC退出原石详情弹窗");
+                keyPress("VK_ESCAPE");
+                await sleep(1500);
+            }, "原石剩余数量识别");
+        }
 
         await sleep(500); // 短延时提升稳定性
 
@@ -332,15 +515,18 @@
             weeklyProgressMsg =`🟡当前进度[${checkResult.weeklyProgressText}]`;
         }
 
-        // 幻想真境剧诗提示文案
-        let unrealRealmMsg = `幻想真境剧诗剩余：${checkResult.unrealRealmRemainTime}`;
-        const unrealDays = checkResult.unrealRealmRemainTime.match(/(\d+)天/)?.[1] || 99;
-        if (parseInt(unrealDays) <= 3) {
-            unrealRealmMsg += " ⚠️即将刷新";
-        }
-        // 剩余时间≥28天+已刷新描述
-        if (parseInt(unrealDays) >= 28) {
-            unrealRealmMsg += " 🔄  [已刷新]新的幻想真境剧诗";
+        // 幻想真境剧诗提示文案（新号模式下不显示）
+        let unrealRealmMsg = "";
+        if (!settings.newAccountMode) {
+            unrealRealmMsg = `幻想真境剧诗剩余：${checkResult.unrealRealmRemainTime}`;
+            const unrealDays = checkResult.unrealRealmRemainTime.match(/(\d+)天/)?.[1] || 99;
+            if (parseInt(unrealDays) <= 3) {
+                unrealRealmMsg += " ⚠️即将刷新";
+            }
+            // 剩余时间≥28天+已刷新描述
+            if (parseInt(unrealDays) >= 28) {
+                unrealRealmMsg += " 🔄  [已刷新]新的幻想真境剧诗";
+            }
         }
 
         // 深境螺旋提示文案
@@ -408,7 +594,9 @@ ${spiralAbyssMsg}`;
         log.info(`📌 今日奖励：${checkResult.dailyRewardClaimed ? '已领取' : '未领取'}`);
         log.info(`📌 砺行修远今日状态：${checkResult.dailyProgressCompleted ? '已完成' : '未完成'}`);
         log.info(`📌 砺行修远本周进度：${checkResult.weeklyProgressText}`);
-        log.info(`📌 幻想真境剧诗剩余时间：${checkResult.unrealRealmRemainTime}`);
+        if (!settings.newAccountMode) {
+            log.info(`📌 幻想真境剧诗剩余时间：${checkResult.unrealRealmRemainTime}`);
+        }
         log.info(`📌 深境螺旋剩余时间：${checkResult.spiralAbyssRemainTime}`);
         log.info(`📌 原粹树脂剩余数量：${checkResult.resinCount}`);
         log.info(`📌 原粹树脂全部恢复时间：${checkResult.resinRecoverTime}`);
