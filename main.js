@@ -649,7 +649,7 @@ async function executeNewProcesses() {
     const ExitRo = RecognitionObject.TemplateMatch(file.ReadImageMatSync("RecognitionObject/Exit.png"));
     // 新增：历练点奖励识别对象
     const RewardRo = RecognitionObject.TemplateMatch(file.readImageMatSync("RecognitionObject/reward.png"));
-    RewardRo.threshold = 0.85; // 降低阈值，提升匹配容错率
+    RewardRo.threshold = 0.75;
 
     // 新增：检查并领取历练点奖励
     async function checkAndReceiveTrainingPoints() {
