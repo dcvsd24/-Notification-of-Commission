@@ -32,7 +32,7 @@
         log.info('=================================================');
         log.info(`=== 🚀 开始执行（历练点/委托/派遣） ===`);
         log.info('=================================================');
-        await executeNewProcesses();
+       // await executeNewProcesses();
 
         // ===== 原有逻辑：任务开始 + 通知 =====
         log.info('=================================================');
@@ -115,7 +115,7 @@
             log.info("🔍 正在识别【砺行修远进度】状态");
             // 第一步：识别今日是否完成（匹配Completed.png，指定区域x377,y260,w355,h62）
             const completedMat = file.readImageMatSync("Completed.png");
-            const dailyCompletedTemplate = RecognitionObject.TemplateMatch(completedMat, 377, 260, 355, 62);
+            const dailyCompletedTemplate = RecognitionObject.TemplateMatch(completedMat, 391, 254, 331, 52);
             dailyCompletedTemplate.threshold = 0.96; // 匹配精度
             const dailyCompletedRes = gameImage.find(dailyCompletedTemplate);
             checkResult.dailyProgressCompleted = dailyCompletedRes.isExist();
