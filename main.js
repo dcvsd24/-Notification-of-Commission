@@ -32,13 +32,13 @@
         log.info('=================================================');
         log.info(`=== 🚀 开始执行（历练点/委托/派遣） ===`);
         log.info('=================================================');
-       // await executeNewProcesses();
+        await executeNewProcesses();
 
         // ===== 原有逻辑：任务开始 + 通知 =====
         log.info('=================================================');
         log.info(`=== ✔️ ${TASK_NAME} 开始执行 ===`);
         log.info('=================================================');
-        notification.send(`✨ 开始执行【${TASK_NAME}】`);
+        //notification.send(`✨ 开始执行【${TASK_NAME}】`);
 
         // ===== 2. 返回游戏主界面 + 强制锁定分辨率 =====
         log.info("📌 正在返回游戏主界面并校准...");
@@ -97,7 +97,7 @@
         // ===== 6. 今日委托奖励状态检查 - 图片匹配【Reward Has been claimed.png】+ 重试 =====
         await executeCheckWithRetry(async () => {
             log.info("🔍 正在识别【今日奖励】状态 → 匹配 Reward Has been claimed.png");
-            const rewardClaimedTemplate = RecognitionObject.TemplateMatch(file.readImageMatSync("Reward Has been claimed.png"));
+            const rewardClaimedTemplate = RecognitionObject.TemplateMatch(file.readImageMatSync("RecognitionObject/Reward Has been claimed.png"));
             const rewardClaimedRes = gameImage.find(rewardClaimedTemplate);
             checkResult.dailyRewardClaimed = rewardClaimedRes.isExist();
             
@@ -108,13 +108,52 @@
             }
         }, "今日奖励状态识别");
 
+        // ===== 6.1 今日奖励未领取时重试前往凯瑟琳领取 =====
+        if (!checkResult.dailyRewardClaimed) {
+            const maxRetryCount = settings.dailyRewardRetryCount || 2;
+            for (let retryAttempt = 1; retryAttempt <= maxRetryCount; retryAttempt++) {
+                log.warn(`⚠️ 检测到今日奖励未领取，开始第 ${retryAttempt} 次重试前往凯瑟琳领取...`);
+                
+                try {
+                    await retryClaimDailyReward();
+                    
+                    await sleep(2000);
+                    log.info("📌 按下F1快捷键，打开冒险之证面板...");
+                    keyPress("F1");
+                    await sleep(2000);
+                    log.info("📌 点击每日奖励入口...");
+                    click(295, 340);
+                    await sleep(2000);
+                    
+                    const retryGameImage = captureGameRegion();
+                    if (!retryGameImage) {
+                        log.error("重试时游戏画面截图失败");
+                        continue;
+                    }
+                    
+                    const retryRewardTemplate = RecognitionObject.TemplateMatch(file.readImageMatSync("RecognitionObject/Reward Has been claimed.png"));
+                    const retryRewardRes = retryGameImage.find(retryRewardTemplate);
+                    checkResult.dailyRewardClaimed = retryRewardRes.isExist();
+                    
+                    if (checkResult.dailyRewardClaimed) {
+                        log.info(`✅ 第 ${retryAttempt} 次重试成功！今日委托奖励已领取 ✔️`);
+                        break;
+                    } else {
+                        log.warn(`⚠️ 第 ${retryAttempt} 次重试后仍未领取，${retryAttempt < maxRetryCount ? '准备下一次重试...' : '已达到最大重试次数'}`);
+                    }
+                } catch (retryError) {
+                    log.error(`❌ 第 ${retryAttempt} 次重试过程中发生错误: ${retryError.message}`);
+                }
+            }
+        }
+
         await sleep(300); // 短延时提升稳定性
 
         // ===== 7. 砺行修远进度检查 - 今日完成状态+本周进度文字 + 重试 =====
         await executeCheckWithRetry(async () => {
             log.info("🔍 正在识别【砺行修远进度】状态");
             // 第一步：识别今日是否完成（匹配Completed.png，指定区域x377,y260,w355,h62）
-            const completedMat = file.readImageMatSync("Completed.png");
+            const completedMat = file.readImageMatSync("RecognitionObject/Completed.png");
             const dailyCompletedTemplate = RecognitionObject.TemplateMatch(completedMat, 391, 254, 331, 52);
             dailyCompletedTemplate.threshold = 0.96; // 匹配精度
             const dailyCompletedRes = gameImage.find(dailyCompletedTemplate);
@@ -324,169 +363,122 @@
 
         await sleep(500); // 短延时提升稳定性
 
-        // ===== 10. 原粹树脂剩余数量&恢复时间检查 =====
-        if (settings.newAccountMode) {
-            // 新号模式树脂识别区域不同
-            await executeCheckWithRetry(async () => {
-                log.info("🔍 正在检查【原粹树脂】剩余数量&恢复时间（新号模式）");
-                // 第一步：识别剩余树脂数量（x1400,y30,w111,h35）
-                log.info("🔍 OCR识别原粹树脂剩余数量（区域：x1400,y30,w111,h35）");
-                const resinCountRegion = RecognitionObject.ocr(1400, 30, 111, 35);
-                let capture1 = captureGameRegion();
-                let ocrRes1 = capture1.find(resinCountRegion);
-                let resinRawText = ocrRes1.text?.trim() || "未识别";
-                let resinNum = resinRawText.split('/')[0]?.trim() || resinRawText;
-                checkResult.resinCount = resinNum;
-                capture1.dispose();
-
-                // 第二步：点击坐标1387,49查看树脂恢复时间
-                log.info("📌 点击坐标1387,49查看树脂恢复时间");
+        // ===== 10. 原粹树脂恢复时间检查（匹配树脂.png点击查看） =====
+        await executeCheckWithRetry(async () => {
+            log.info("🔍 正在检查【原粹树脂】恢复时间");
+            // 第一步：匹配树脂.png并点击，查看树脂恢复时间
+            log.info("🔍 匹配树脂.png并点击查看树脂恢复时间");
+            const resinIconRo = RecognitionObject.TemplateMatch(file.readImageMatSync("RecognitionObject/树脂.png"), 1067, 24, 328, 52);
+            let resinCapture = captureGameRegion();
+            let resinIconRes = resinCapture.find(resinIconRo);
+            if (resinIconRes.isExist() && resinIconRes.X !== 0 && resinIconRes.Y !== 0) {
+                // 点击坐标取整：click 参数为 int，小数会触发参数转换异常
+                click(Math.round(resinIconRes.X + resinIconRes.Width / 2), Math.round(resinIconRes.Y + resinIconRes.Height / 2));
+            } else {
+                log.warn("⚠️ 未匹配到树脂.png，使用兜底坐标1387,49");
                 click(1387, 49);
-                await sleep(1500);
+            }
+            resinCapture.dispose();
+            await sleep(1500);
 
-                // 识别恢复时间（x1346,y183,w166,h36）
-                log.info("🔍 OCR识别原粹树脂全部恢复时间");
-                const resinRecoverRegion = RecognitionObject.ocr(1346, 183, 166, 36);
-                let capture2 = captureGameRegion();
-                let ocrRes2 = capture2.find(resinRecoverRegion);
-                let recoverTimeText = ocrRes2.text?.trim() || "";
+            // 第二步：识别恢复时间（x1055,y75,w370,h180）
+            log.info("🔍 OCR识别原粹树脂全部恢复时间（区域：x1055,y75,w370,h180）");
+            const resinRecoverRegion = RecognitionObject.ocr(1055, 75, 370, 180);
+            let capture2 = captureGameRegion();
+            let ocrRes2 = capture2.find(resinRecoverRegion);
+            let recoverTimeText = ocrRes2.text?.trim() || "";
+            log.info(`🔍 树脂恢复时间OCR原文：${recoverTimeText ? `"${recoverTimeText.replace(/\n/g, " | ")}"` : "（空）"}`);
 
-                if (recoverTimeText) {
-                    const timeParts = recoverTimeText.split(':');
-                    if (timeParts.length >= 2) {
-                        let hours = Number(timeParts[0]).toString();
-                        let minutes = Number(timeParts[1]).toString();
-                        checkResult.resinRecoverTime = `${hours}h-${minutes}min`;
-                    } else {
-                        checkResult.resinRecoverTime = recoverTimeText;
-                    }
+            if (recoverTimeText) {
+                // 提示框含"下次恢复 xx:xx:xx"与"全部恢复 xx:xx:xx"两行时间，只需"全部恢复"之后的那个
+                let targetTime = null;
+                const allRecoverIdx = recoverTimeText.lastIndexOf("全部恢复");
+                if (allRecoverIdx >= 0) {
+                    // 取"全部恢复"之后的第一个时间
+                    const m = recoverTimeText.substring(allRecoverIdx).match(/\d{1,2}:\d{1,2}(?::\d{1,2})?/);
+                    if (m) targetTime = m[0];
                 } else {
-                    checkResult.resinRecoverTime = "⚠️原粹树脂已完全恢复";
+                    // 未识别到"全部恢复"字样，取最后一个时间兜底（更可能是全部恢复时间）
+                    const allTimes = recoverTimeText.match(/\d{1,2}:\d{1,2}(?::\d{1,2})?/g) || [];
+                    targetTime = allTimes.length > 0 ? allTimes[allTimes.length - 1] : null;
                 }
-                capture2.dispose();
-
-                log.info(`✅ 原粹树脂剩余数量：${checkResult.resinCount}`);
-                log.info(`✅ 原粹树脂全部恢复时间：${checkResult.resinRecoverTime}`);
-            }, "原粹树脂状态识别");
-        } else {
-            // 原有模式树脂识别
-            await executeCheckWithRetry(async () => {
-                log.info("🔍 正在检查【原粹树脂】剩余数量&恢复时间");
-                // 第一步：识别剩余树脂数量（x1272,y30,w106,h40）
-                log.info("🔍 OCR识别原粹树脂剩余数量（区域：x1272,y30,w106,h40）");
-                const resinCountRegion = RecognitionObject.ocr(1272, 30, 106, 40);
-                let capture1 = captureGameRegion();
-                let ocrRes1 = capture1.find(resinCountRegion);
-                // 提取斜杠前的数字，仅保留当前数量
-                let resinRawText = ocrRes1.text?.trim() || "未识别";
-                let resinNum = resinRawText.split('/')[0]?.trim() || resinRawText;
-                checkResult.resinCount = resinNum; // 仅保存当前数量
-                capture1.dispose();
-        
-                // 第二步：点击坐标后识别恢复时间（x1254,46）
-                log.info("📌 点击坐标1254,46查看树脂恢复时间");
-                click(1254, 46);
-                await sleep(1500);
-        
-                // 识别恢复时间（x1218,y181,w124,h36）
-                log.info("🔍 OCR识别原粹树脂全部恢复时间");
-                const resinRecoverRegion = RecognitionObject.ocr(1218, 181, 124, 36);
-                let capture2 = captureGameRegion();
-                let ocrRes2 = capture2.find(resinRecoverRegion);
-                // 判定恢复时间为空/未识别时的处理逻辑
-                let recoverTimeText = ocrRes2.text?.trim() || "";
-                
-                // 移除秒数 + 去掉前置零（如01h-05min → 1h-5min）
-                if (recoverTimeText) {
-                    // 按冒号拆分时间（时:分:秒），只取时和分
-                    const timeParts = recoverTimeText.split(':');
-                    if (timeParts.length >= 2) {
-                        // 去掉前置零：通过Number转换自动去除，再转回字符串
-                        let hours = Number(timeParts[0]).toString();
-                        let minutes = Number(timeParts[1]).toString();
-                        checkResult.resinRecoverTime = `${hours}h-${minutes}min`;
-                    } else {
-                        // 格式异常时保留原文本
-                        checkResult.resinRecoverTime = recoverTimeText;
-                    }
+                if (targetTime) {
+                    const parts = targetTime.split(':');
+                    let hours = Number(parts[0]).toString();
+                    let minutes = Number(parts[1]).toString();
+                    checkResult.resinRecoverTime = `${hours}h-${minutes}min`;
                 } else {
-                    // 树脂满时恢复时间为空，直接标记为"原粹树脂已完全恢复"
-                    checkResult.resinRecoverTime = "⚠️原粹树脂已完全恢复";
+                    checkResult.resinRecoverTime = recoverTimeText;
                 }
-                capture2.dispose();
-        
-                // 日志输出
-                log.info(`✅ 原粹树脂剩余数量：${checkResult.resinCount}`);
-                log.info(`✅ 原粹树脂全部恢复时间：${checkResult.resinRecoverTime}`);
-            }, "原粹树脂状态识别");
-        }
+            } else {
+                checkResult.resinRecoverTime = "⚠️原粹树脂已完全恢复";
+            }
+            capture2.dispose();
+
+            log.info(`✅ 原粹树脂全部恢复时间：${checkResult.resinRecoverTime}`);
+        }, "原粹树脂状态识别");
         
         await sleep(500); // 短延时提升稳定性
 
-        // ===== 11. 新增：识别恢复时间（x1218,y181,w124,h36） =====
-        if (settings.newAccountMode) {
-            // 新号模式原石识别
-            await executeCheckWithRetry(async () => {
-                log.info("🔍 正在检查【原石】剩余数量（新号模式）");
-                // 点击坐标1530,46打开原石弹窗
-                log.info("📌 点击坐标1530,46打开原石详情弹窗");
+        // ===== 11. 原石剩余数量检查（匹配打开按钮.png打开详情） =====
+        await executeCheckWithRetry(async () => {
+            log.info("🔍 正在检查【原石】剩余数量");
+            // 第一步：匹配打开按钮.png并点击，打开原石详情弹窗
+            log.info("🔍 匹配打开按钮.png并点击打开原石详情弹窗");
+            const openBtnRo = RecognitionObject.TemplateMatch(file.readImageMatSync("RecognitionObject/打开按钮.png"), 1067, 24, 328, 52);
+            let openCapture = captureGameRegion();
+            let openBtnRes = openCapture.find(openBtnRo);
+            if (openBtnRes.isExist() && openBtnRes.X !== 0 && openBtnRes.Y !== 0) {
+                // 点击坐标取整：click 参数为 int，小数会触发参数转换异常
+                click(Math.round(openBtnRes.X + openBtnRes.Width / 2), Math.round(openBtnRes.Y + openBtnRes.Height / 2));
+            } else {
+                log.warn("⚠️ 未匹配到打开按钮.png，使用兜底坐标1530,46");
                 click(1530, 46);
-                await sleep(1500);
+            }
+            openCapture.dispose();
+            await sleep(1500);
 
-                // OCR识别原石数量（区域：x970,y522,w119,h27）
-                log.info("🔍 OCR识别原石剩余数量（区域：x970,y522,w119,h27）");
-                const primogemRegion = RecognitionObject.ocr(970, 522, 119, 27);
-                let capture = captureGameRegion();
-                let ocrRes = capture.find(primogemRegion);
+            // 第二步：识别剩余树脂数量（x1590,y30,w238,h33）
+            log.info("🔍 OCR识别原粹树脂剩余数量（区域：x1590,y30,w238,h33）");
+            const resinCountRegion = RecognitionObject.ocr(1590, 30, 238, 33);
+            let resinCapture = captureGameRegion();
+            let ocrRes1 = resinCapture.find(resinCountRegion);
+            let resinRawText = ocrRes1.text?.trim() || "未识别";
+            let resinNum = resinRawText.split('/')[0]?.trim() || resinRawText;
+            checkResult.resinCount = resinNum;
+            resinCapture.dispose();
+
+            // 第三步：区域匹配原石.png，识别其下方（y偏移120、宽130）的数字为原石数量
+            log.info("🔍 区域匹配原石.png并识别其下方数字");
+            const primogemRo = RecognitionObject.TemplateMatch(file.readImageMatSync("RecognitionObject/原石.png"), 730, 368, 560, 256);
+            let capture = captureGameRegion();
+            let primogemIconRes = capture.find(primogemRo);
+            if (primogemIconRes.isExist() && primogemIconRes.X !== 0 && primogemIconRes.Y !== 0) {
+                log.info(`✅ 原石.png匹配成功，匹配坐标：x${primogemIconRes.X}, y${primogemIconRes.Y}, w${primogemIconRes.Width}, h${primogemIconRes.Height}`);
+                const primogemNumRegion = RecognitionObject.ocr(primogemIconRes.X, primogemIconRes.Y + 120, 130, 36);
+                log.info(`🔍 原石数量识别区域：x${primogemIconRes.X}, y${primogemIconRes.Y + 120}, w130, h36`);
+                let ocrRes = capture.find(primogemNumRegion);
                 let rawPrimogemText = ocrRes.text?.trim() || "";
-                capture.dispose();
-
-                // 过滤特殊符号，仅保留纯数字
+                log.info(`🔍 原石数量OCR识别结果：${rawPrimogemText ? `"${rawPrimogemText}"` : "（未识别到文字）"}`);
                 checkResult.primogemCount = rawPrimogemText.replace(/[^0-9]/g, '');
                 if (!checkResult.primogemCount) {
                     checkResult.primogemCount = "未识别";
                 }
+            } else {
+                log.warn("⚠️ 未匹配到原石.png（匹配区域：x730,y368,w560,h256），跳过原石数量识别");
+                checkResult.primogemCount = "未识别";
+            }
+            capture.dispose();
 
-                // 日志输出
-                log.info(`✅ 原石剩余数量：${checkResult.primogemCount}`);
+            // 日志输出
+            log.info(`✅ 原石剩余数量：${checkResult.primogemCount}`);
+            log.info(`✅ 原粹树脂剩余数量：${checkResult.resinCount}`);
 
-                // 按ESC退出详情页
-                log.info("📌 按下ESC退出原石详情弹窗");
-                keyPress("VK_ESCAPE");
-                await sleep(1500);
-            }, "原石剩余数量识别");
-        } else {
-            // 原有模式原石识别
-            await executeCheckWithRetry(async () => {
-                log.info("🔍 正在检查【原石】剩余数量");
-                // 点击坐标1400,47打开原石弹窗
-                log.info("📌 点击坐标1400,47打开原石详情弹窗");
-                click(1400, 47);
-                await sleep(1500);
-
-                // OCR识别原石数量（区域：x970,y522,w119,h27）
-                log.info("🔍 OCR识别原石剩余数量（区域：x970,y522,w119,h27）");
-                const primogemRegion = RecognitionObject.ocr(970, 522, 119, 27);
-                let capture = captureGameRegion();
-                let ocrRes = capture.find(primogemRegion);
-                let rawPrimogemText = ocrRes.text?.trim() || "";
-                capture.dispose();
-
-                // 过滤特殊符号，仅保留纯数字
-                checkResult.primogemCount = rawPrimogemText.replace(/[^0-9]/g, '');
-                if (!checkResult.primogemCount) {
-                    checkResult.primogemCount = "未识别";
-                }
-
-                // 日志输出
-                log.info(`✅ 原石剩余数量：${checkResult.primogemCount}`);
-
-                // 按ESC退出详情页
-                log.info("📌 按下ESC退出原石详情弹窗");
-                keyPress("VK_ESCAPE");
-                await sleep(1500);
-            }, "原石剩余数量识别");
-        }
+            // 按ESC退出详情页
+            log.info("📌 按下ESC退出原石详情弹窗");
+            keyPress("VK_ESCAPE");
+            await sleep(1500);
+        }, "原石剩余数量识别");
 
         await sleep(500); // 短延时提升稳定性
 
@@ -647,8 +639,8 @@ async function executeNewProcesses() {
     const CommissionsRo = RecognitionObject.TemplateMatch(file.ReadImageMatSync("RecognitionObject/Commissions.png"));
     const ExpeditionRo = RecognitionObject.TemplateMatch(file.ReadImageMatSync("RecognitionObject/Expedition.png"));
     const ExitRo = RecognitionObject.TemplateMatch(file.ReadImageMatSync("RecognitionObject/Exit.png"));
-    // 新增：历练点奖励识别对象
-    const RewardRo = RecognitionObject.TemplateMatch(file.readImageMatSync("RecognitionObject/reward.png"));
+    // 新增：历练点奖励识别对象（限定识别区域x1488,y699,w120,h130，避免全屏干扰）
+    const RewardRo = RecognitionObject.TemplateMatch(file.readImageMatSync("RecognitionObject/reward.png"), 1488, 699, 120, 130);
     RewardRo.threshold = 0.75;
 
     // 新增：检查并领取历练点奖励
@@ -667,15 +659,14 @@ async function executeNewProcesses() {
             click(303, 347);
             await sleep(1500);
 
-            // 识别指定区域(x1488,y699,w120,h130)的reward图片
+            // 识别历练点奖励（识别区域已在RewardRo中限定）
             const rewardResult = await recognizeImage(
                 RewardRo, 
                 null, 
                 2000, 
                 500, 
                 true, 
-                "Reward",
-                1488, 699, 120, 130 // 指定识别区域坐标和尺寸
+                "Reward"
             );
 
             if (rewardResult.isDetected) {
@@ -819,4 +810,91 @@ async function executeNewProcesses() {
     } catch (error) {
         log.error("主流程错误: " + error.message);
     }
+}
+
+// ===== 新增：重试领取每日委托奖励函数 =====
+async function retryClaimDailyReward() {
+    log.info("📌 开始重试领取每日委托奖励...");
+    
+    // 加载region.js
+    eval(file.readTextSync("lib/region.js"));
+    
+    // 加载图片资源
+    const F_DialogueRo = RecognitionObject.TemplateMatch(file.ReadImageMatSync("RecognitionObject/F_Dialogue.png"));
+    const CommissionsRo = RecognitionObject.TemplateMatch(file.ReadImageMatSync("RecognitionObject/Commissions.png"));
+    
+    // 返回游戏主界面
+    log.info("📌 正在返回游戏主界面...");
+    await genshin.returnMainUi();
+    setGameMetrics(1920, 1080, 1);
+    await sleep(1500);
+    
+    // 前往凯瑟琳
+    let locationName;
+    if (settings.adventurePath === undefined || settings.adventurePath === "") {
+        locationName = "蒙德凯瑟琳";
+    } else {
+        locationName = `${settings.adventurePath}凯瑟琳`;
+    }
+    
+    log.info(`📌 重试：前往 ${locationName}`);
+    try {
+        let filePath = `assets/${locationName}.json`;
+        await pathingScript.runFile(filePath);
+    } catch (error) {
+        log.error(`执行 ${locationName} 路径时发生错误: ${error.message}`);
+    }
+    await sleep(2000);
+    
+    if (locationName == "纳塔凯瑟琳") {
+        keyDown("w");
+        await sleep(4500);
+        keyUp("w");
+        keyDown("d");
+        await sleep(2000);
+        keyUp("d");
+    }
+    
+    setGameMetrics(1920, 1080, 1);
+    await genshin.returnMainUi();
+    
+    // 通过识别F_Dialogue打开界面
+    async function openByFDialogue() {
+        keyPress("F");
+        await sleep(1000);
+        click(960, 540);
+        await sleep(1500);
+        let ra = null;
+        
+        const fResult = await recognizeImage(F_DialogueRo, ra, 2000, 500, true, "F_Dialogue");
+        if (fResult.isDetected) {
+            await drawAndClearRedBox(fResult, fResult.ra);
+            await sleep(500);
+            return fResult.ra;
+        } else {
+            log.error("未识别到F_Dialogue，无法打开界面");
+            return null;
+        }
+    }
+    
+    // 执行委托领取
+    const ra = await openByFDialogue();
+    if (ra) {
+        const commResult = await recognizeImage(CommissionsRo, ra, 2000, 500, "Commissions");
+        if (commResult.isDetected) {
+            await drawAndClearRedBox(commResult, ra);
+            click(commResult.x, commResult.y);
+            await sleep(1000);
+            click(960, 540);
+            await sleep(3000);
+            click(960, 960);
+            log.info("✅ 重试领取每日委托奖励完成");
+        } else {
+            log.error("未识别到Commissions，跳过委托领取");
+        }
+    }
+    
+    // 返回主界面
+    await genshin.returnMainUi();
+    log.info("📌 重试流程结束，已返回主界面");
 }
