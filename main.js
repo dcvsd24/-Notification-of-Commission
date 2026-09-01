@@ -425,7 +425,7 @@
             log.info("🔍 正在检查【原石】剩余数量");
             // 第一步：匹配打开按钮.png并点击，打开原石详情弹窗
             log.info("🔍 匹配打开按钮.png并点击打开原石详情弹窗");
-            const openBtnRo = RecognitionObject.TemplateMatch(file.readImageMatSync("RecognitionObject/打开按钮.png"), 1067, 24, 328, 52);
+            const openBtnRo = RecognitionObject.TemplateMatch(file.readImageMatSync("RecognitionObject/打开按钮.png"), 1067, 24, 485, 52);
             let openCapture = captureGameRegion();
             let openBtnRes = openCapture.find(openBtnRo);
             if (openBtnRes.isExist() && openBtnRes.X !== 0 && openBtnRes.Y !== 0) {
